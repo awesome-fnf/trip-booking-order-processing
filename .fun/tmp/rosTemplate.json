@@ -1,0 +1,215 @@
+{
+    "ROSTemplateFormatVersion": "2015-09-01",
+    "Resources": {
+        "tripOrderProcessingServicesendAlert": {
+            "Type": "ALIYUN::FC::Function",
+            "Properties": {
+                "Code": {
+                    "OssBucketName": "fnf-demo-fc-code-cn-shenzhen",
+                    "OssObjectName": "6424610647e9938b6f0078bd79dfee27"
+                },
+                "FunctionName": "tripOrder1-sendAlert-C6F98798CDDA",
+                "MemorySize": 256,
+                "EnvironmentVariables": {
+                    "PATH": "/code/.fun/root/usr/local/bin:/code/.fun/root/usr/local/sbin:/code/.fun/root/usr/bin:/code/.fun/root/usr/sbin:/code/.fun/root/sbin:/code/.fun/root/bin:/code/.fun/python/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/sbin:/bin",
+                    "LD_LIBRARY_PATH": "/code/.fun/root/usr/lib:/code/.fun/root/usr/lib/x86_64-linux-gnu:/code/.fun/root/lib/x86_64-linux-gnu:/code/.fun/root/usr/lib64:/code:/code/lib:/usr/local/lib",
+                    "PYTHONUSERBASE": "/code/.fun/python"
+                },
+                "ServiceName": "tripOrder1-tripOrderProcessingService-4D5215E8A0A4",
+                "Timeout": 60,
+                "Handler": "index.handler",
+                "Runtime": "python3"
+            },
+            "DependsOn": [
+                "tripOrderProcessingService"
+            ]
+        },
+        "tripOrderProcessingServicebookTrainTicket": {
+            "Type": "ALIYUN::FC::Function",
+            "Properties": {
+                "Code": {
+                    "OssBucketName": "fnf-demo-fc-code-cn-shenzhen",
+                    "OssObjectName": "2dc72243489edca87e76584bd3d4ea45"
+                },
+                "FunctionName": "tripOrder1-bookTrainTicket-04C693E4CAAE",
+                "MemorySize": 256,
+                "EnvironmentVariables": {
+                    "PATH": "/code/.fun/root/usr/local/bin:/code/.fun/root/usr/local/sbin:/code/.fun/root/usr/bin:/code/.fun/root/usr/sbin:/code/.fun/root/sbin:/code/.fun/root/bin:/code/.fun/python/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/sbin:/bin",
+                    "LD_LIBRARY_PATH": "/code/.fun/root/usr/lib:/code/.fun/root/usr/lib/x86_64-linux-gnu:/code/.fun/root/lib/x86_64-linux-gnu:/code/.fun/root/usr/lib64:/code:/code/lib:/usr/local/lib",
+                    "PYTHONUSERBASE": "/code/.fun/python"
+                },
+                "ServiceName": "tripOrder1-tripOrderProcessingService-4D5215E8A0A4",
+                "Timeout": 60,
+                "Handler": "index.handler",
+                "Runtime": "python3"
+            },
+            "DependsOn": [
+                "tripOrderProcessingService"
+            ]
+        },
+        "tripOrderProcessingFlowRole": {
+            "Type": "ALIYUN::RAM::Role",
+            "Properties": {
+                "RoleName": "tripOrder1-tripOrderProcessingFlowRole-3CF1188E7E1D",
+                "Description": "Function Compute default role",
+                "AssumeRolePolicyDocument": {
+                    "Version": "1",
+                    "Statement": [
+                        {
+                            "Action": "sts:AssumeRole",
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": [
+                                    "fnf.aliyuncs.com"
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        "tripOrderProcessingFlow": {
+            "Type": "ALIYUN::FNF::Flow",
+            "Properties": {
+                "Definition": {
+                    "Fn::Sub": "version: v1beta1\ntype: flow\nsteps:\n  - type: task\n    resourceArn: '${tripOrderProcessingServicebookTrainTicket.ARN}'\n    name: BookTrainTicket\n    inputMappings:\n      - target: result\n        source: $input.book_train_ticket_result\n    outputMappings:\n      - target: book_train_ticket_transaction_id\n        source: $local.transaction_id\n    catch:\n      - errors:\n          - BookTrainTicketError\n        goto: OrderFailed\n  - type: task\n    resourceArn: '${tripOrderProcessingServicebookFlight.ARN}'\n    name: BookFlight\n    inputMappings:\n      - target: result\n        source: $input.book_flight_result\n    outputMappings:\n      - target: book_flight_transaction_id\n        source: $local.transaction_id\n    catch:\n      - errors:\n          - BookFlightError\n        goto: CancelTrainTicket\n  - type: task\n    resourceArn: '${tripOrderProcessingServicebookHotel.ARN}'\n    name: BookHotel\n    inputMappings:\n      - target: result\n        source: $input.book_hotel_result\n    outputMappings:\n      - target: book_hotel_transaction_id\n        source: $local.transaction_id\n    catch:\n      - errors:\n          - BookHotelError\n        goto: CancelFlight\n    retry:\n      - errors:\n          - BookHotelError\n          - FC.Unknown\n        intervalSeconds: 1\n        maxAttempts: 3\n        multiplier: 2\n  - type: succeed\n    name: OrderSucceeded\n  - type: task\n    resourceArn: '${tripOrderProcessingServicecancelFlight.ARN}'\n    name: CancelFlight\n    inputMappings:\n      - target: result\n        source: $input.cancel_flight_result\n      - target: transaction_id\n        source: $local.book_flight_transaction_id\n    catch:\n      - errors:\n          - CancelFlightError\n        goto: SendAlert\n  - type: task\n    resourceArn: '${tripOrderProcessingServicecancelTrainTicket.ARN}'\n    name: CancelTrainTicket\n    inputMappings:\n      - target: result\n        source: $input.cancel_train_ticket_result\n      - target: transaction_id\n        source: $local.book_train_ticket_transaction_id\n    catch:\n      - errors:\n          - CancelTrainTicketError\n        goto: SendAlert\n  - type: fail\n    name: OrderFailed1\n  - type: task\n    resourceArn: '${tripOrderProcessingServicesendAlert.ARN}'\n    name: SendAlert\n    inputMappings:\n      - target: trip_order_id\n        source: $input.trip_order_id\n      - target: alert_email_address\n        source: dummy_email@dummy_address\n  - type: fail\n    name: OrderFailed\noutputMappings:\n  - target: trip_order_id\n    source: $input.trip_order_id\n  - target: book_train_ticket_transaction_id\n    source: $local.book_train_ticket_transaction_id\n  - target: book_flight_transaction_id\n    source: $local.book_flight_transaction_id\n  - target: book_hotel_transaction_id\n    source: $local.book_hotel_transaction_id\n"
+                },
+                "RoleArn": {
+                    "Fn::GetAtt": [
+                        "tripOrderProcessingFlowRole",
+                        "Arn"
+                    ]
+                },
+                "Name": "tripOrder1-tripOrderProcessingFlow-974EE15DF073",
+                "Description": "Trip order processing workflow"
+            },
+            "DependsOn": [
+                "tripOrderProcessingServicebookTrainTicket",
+                "tripOrderProcessingServicebookFlight",
+                "tripOrderProcessingServicebookHotel",
+                "tripOrderProcessingServicecancelFlight",
+                "tripOrderProcessingServicecancelTrainTicket",
+                "tripOrderProcessingServicesendAlert",
+                "tripOrderProcessingFlowRole"
+            ]
+        },
+        "tripOrderProcessingServicecancelTrainTicket": {
+            "Type": "ALIYUN::FC::Function",
+            "Properties": {
+                "Code": {
+                    "OssBucketName": "fnf-demo-fc-code-cn-shenzhen",
+                    "OssObjectName": "2e7ffaf749bc89cdc2d2f46dab615e79"
+                },
+                "FunctionName": "tripOrder1-cancelTrainTicket-3A1A6AB71DA3",
+                "MemorySize": 256,
+                "EnvironmentVariables": {
+                    "PATH": "/code/.fun/root/usr/local/bin:/code/.fun/root/usr/local/sbin:/code/.fun/root/usr/bin:/code/.fun/root/usr/sbin:/code/.fun/root/sbin:/code/.fun/root/bin:/code/.fun/python/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/sbin:/bin",
+                    "LD_LIBRARY_PATH": "/code/.fun/root/usr/lib:/code/.fun/root/usr/lib/x86_64-linux-gnu:/code/.fun/root/lib/x86_64-linux-gnu:/code/.fun/root/usr/lib64:/code:/code/lib:/usr/local/lib",
+                    "PYTHONUSERBASE": "/code/.fun/python"
+                },
+                "ServiceName": "tripOrder1-tripOrderProcessingService-4D5215E8A0A4",
+                "Timeout": 60,
+                "Handler": "index.handler",
+                "Runtime": "python3"
+            },
+            "DependsOn": [
+                "tripOrderProcessingService"
+            ]
+        },
+        "tripOrderProcessingService": {
+            "Type": "ALIYUN::FC::Service",
+            "Properties": {
+                "InternetAccess": true,
+                "ServiceName": "tripOrder1-tripOrderProcessingService-4D5215E8A0A4",
+                "Description": "Trip order processing workflow",
+                "LogConfig": {
+                    "Project": "",
+                    "Logstore": ""
+                }
+            }
+        },
+        "tripOrderProcessingServicebookHotel": {
+            "Type": "ALIYUN::FC::Function",
+            "Properties": {
+                "Code": {
+                    "OssBucketName": "fnf-demo-fc-code-cn-shenzhen",
+                    "OssObjectName": "195364bffd77b9d6bfcac1fe4a04e39b"
+                },
+                "FunctionName": "tripOrder1-bookHotel-993D3E872165",
+                "MemorySize": 256,
+                "EnvironmentVariables": {
+                    "PATH": "/code/.fun/root/usr/local/bin:/code/.fun/root/usr/local/sbin:/code/.fun/root/usr/bin:/code/.fun/root/usr/sbin:/code/.fun/root/sbin:/code/.fun/root/bin:/code/.fun/python/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/sbin:/bin",
+                    "LD_LIBRARY_PATH": "/code/.fun/root/usr/lib:/code/.fun/root/usr/lib/x86_64-linux-gnu:/code/.fun/root/lib/x86_64-linux-gnu:/code/.fun/root/usr/lib64:/code:/code/lib:/usr/local/lib",
+                    "PYTHONUSERBASE": "/code/.fun/python"
+                },
+                "ServiceName": "tripOrder1-tripOrderProcessingService-4D5215E8A0A4",
+                "Timeout": 60,
+                "Handler": "index.handler",
+                "Runtime": "python3"
+            },
+            "DependsOn": [
+                "tripOrderProcessingService"
+            ]
+        },
+        "AliyunFCInvocationAccesstripOrderProcessingFlowRole": {
+            "Type": "ALIYUN::RAM::AttachPolicyToRole",
+            "Properties": {
+                "PolicyName": "AliyunFCInvocationAccess",
+                "PolicyType": "System",
+                "RoleName": {
+                    "Fn::GetAtt": [
+                        "tripOrderProcessingFlowRole",
+                        "RoleName"
+                    ]
+                }
+            },
+            "DependsOn": "tripOrderProcessingFlowRole"
+        },
+        "tripOrderProcessingServicecancelFlight": {
+            "Type": "ALIYUN::FC::Function",
+            "Properties": {
+                "Code": {
+                    "OssBucketName": "fnf-demo-fc-code-cn-shenzhen",
+                    "OssObjectName": "9efe565330ad891a4f193a6a465db5c0"
+                },
+                "FunctionName": "tripOrder1-cancelFlight-FF9F3E4C821D",
+                "MemorySize": 256,
+                "EnvironmentVariables": {
+                    "PATH": "/code/.fun/root/usr/local/bin:/code/.fun/root/usr/local/sbin:/code/.fun/root/usr/bin:/code/.fun/root/usr/sbin:/code/.fun/root/sbin:/code/.fun/root/bin:/code/.fun/python/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/sbin:/bin",
+                    "LD_LIBRARY_PATH": "/code/.fun/root/usr/lib:/code/.fun/root/usr/lib/x86_64-linux-gnu:/code/.fun/root/lib/x86_64-linux-gnu:/code/.fun/root/usr/lib64:/code:/code/lib:/usr/local/lib",
+                    "PYTHONUSERBASE": "/code/.fun/python"
+                },
+                "ServiceName": "tripOrder1-tripOrderProcessingService-4D5215E8A0A4",
+                "Timeout": 60,
+                "Handler": "index.handler",
+                "Runtime": "python3"
+            },
+            "DependsOn": [
+                "tripOrderProcessingService"
+            ]
+        },
+        "tripOrderProcessingServicebookFlight": {
+            "Type": "ALIYUN::FC::Function",
+            "Properties": {
+                "Code": {
+                    "OssBucketName": "fnf-demo-fc-code-cn-shenzhen",
+                    "OssObjectName": "030418684770af34a5d0e523834d792f"
+                },
+                "FunctionName": "tripOrder1-bookFlight-8244620A7F8F",
+                "MemorySize": 256,
+                "EnvironmentVariables": {
+                    "PATH": "/code/.fun/root/usr/local/bin:/code/.fun/root/usr/local/sbin:/code/.fun/root/usr/bin:/code/.fun/root/usr/sbin:/code/.fun/root/sbin:/code/.fun/root/bin:/code/.fun/python/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/sbin:/bin",
+                    "LD_LIBRARY_PATH": "/code/.fun/root/usr/lib:/code/.fun/root/usr/lib/x86_64-linux-gnu:/code/.fun/root/lib/x86_64-linux-gnu:/code/.fun/root/usr/lib64:/code:/code/lib:/usr/local/lib",
+                    "PYTHONUSERBASE": "/code/.fun/python"
+                },
+                "ServiceName": "tripOrder1-tripOrderProcessingService-4D5215E8A0A4",
+                "Timeout": 60,
+                "Handler": "index.handler",
+                "Runtime": "python3"
+            },
+            "DependsOn": [
+                "tripOrderProcessingService"
+            ]
+        }
+    }
+}

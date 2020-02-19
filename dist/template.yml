@@ -1,0 +1,166 @@
+ROSTemplateFormatVersion: '2015-09-01'
+Transform: 'Aliyun::Serverless-2018-04-03'
+Resources:
+  tripOrderProcessingFlow:
+    Type: 'Aliyun::Serverless::Flow'
+    DependsOn:
+      - tripOrderProcessingServicebookTrainTicket
+      - tripOrderProcessingServicebookFlight
+      - tripOrderProcessingServicebookHotel
+      - tripOrderProcessingServicecancelFlight
+      - tripOrderProcessingServicecancelTrainTicket
+      - tripOrderProcessingServicesendAlert
+    Properties:
+      Description: Trip order processing workflow
+      Policies:
+        - AliyunFCInvocationAccess
+      Definition:
+        'Fn::Sub': |
+          version: v1beta1
+          type: flow
+          steps:
+            - type: task
+              resourceArn: '${tripOrderProcessingServicebookTrainTicket.ARN}'
+              name: BookTrainTicket
+              inputMappings:
+                - target: result
+                  source: $input.book_train_ticket_result
+              outputMappings:
+                - target: book_train_ticket_transaction_id
+                  source: $local.transaction_id
+              retry:
+                - errors:
+                    - BookTrainTicketError
+                    - FC.Unknown
+                  intervalSeconds: 1
+                  maxAttempts: 3
+                  multiplier: 2
+              catch:
+                - errors:
+                    - BookTrainTicketError
+                  goto: OrderFailed
+            - type: task
+              resourceArn: '${tripOrderProcessingServicebookFlight.ARN}'
+              name: BookFlight
+              inputMappings:
+                - target: result
+                  source: $input.book_flight_result
+              outputMappings:
+                - target: book_flight_transaction_id
+                  source: $local.transaction_id
+              catch:
+                - errors:
+                    - BookFlightError
+                  goto: CancelTrainTicket
+            - type: task
+              resourceArn: '${tripOrderProcessingServicebookHotel.ARN}'
+              name: BookHotel
+              inputMappings:
+                - target: result
+                  source: $input.book_hotel_result
+              outputMappings:
+                - target: book_hotel_transaction_id
+                  source: $local.transaction_id
+              catch:
+                - errors:
+                    - BookHotelError
+                  goto: CancelFlight
+            - type: succeed
+              name: OrderSucceeded
+            - type: task
+              resourceArn: '${tripOrderProcessingServicecancelFlight.ARN}'
+              name: CancelFlight
+              inputMappings:
+                - target: result
+                  source: $input.cancel_flight_result
+                - target: transaction_id
+                  source: $local.book_flight_transaction_id
+              catch:
+                - errors:
+                    - CancelFlightError
+                  goto: SendAlert
+            - type: task
+              resourceArn: '${tripOrderProcessingServicecancelTrainTicket.ARN}'
+              name: CancelTrainTicket
+              inputMappings:
+                - target: result
+                  source: $input.cancel_train_ticket_result
+                - target: transaction_id
+                  source: $local.book_train_ticket_transaction_id
+              catch:
+                - errors:
+                    - CancelTrainTicketError
+                  goto: SendAlert
+            - type: fail
+              name: OrderFailed1
+            - type: task
+              resourceArn: '${tripOrderProcessingServicesendAlert.ARN}'
+              name: SendAlert
+              inputMappings:
+                - target: trip_order_id
+                  source: $input.trip_order_id
+                - target: alert_email_address
+                  source: dummy_email@dummy_address
+            - type: fail
+              name: OrderFailed
+          outputMappings:
+            - target: trip_order_id
+              source: $input.trip_order_id
+            - target: book_train_ticket_transaction_id
+              source: $local.book_train_ticket_transaction_id
+            - target: book_flight_transaction_id
+              source: $local.book_flight_transaction_id
+            - target: book_hotel_transaction_id
+              source: $local.book_hotel_transaction_id
+  tripOrderProcessingService:
+    Properties:
+      Description: Trip order processing workflow
+    Type: 'Aliyun::Serverless::Service'
+    bookTrainTicket:
+      Type: 'Aliyun::Serverless::Function'
+      Properties:
+        Handler: index.handler
+        Runtime: python3
+        Timeout: 60
+        MemorySize: 256
+        CodeUri: 'oss://%bucket%/%templateName%/2dc72243489edca87e76584bd3d4ea45'
+    bookFlight:
+      Type: 'Aliyun::Serverless::Function'
+      Properties:
+        Handler: index.handler
+        Runtime: python3
+        Timeout: 60
+        MemorySize: 256
+        CodeUri: 'oss://%bucket%/%templateName%/030418684770af34a5d0e523834d792f'
+    bookHotel:
+      Type: 'Aliyun::Serverless::Function'
+      Properties:
+        Handler: index.handler
+        Runtime: python3
+        Timeout: 60
+        MemorySize: 256
+        CodeUri: 'oss://%bucket%/%templateName%/195364bffd77b9d6bfcac1fe4a04e39b'
+    cancelFlight:
+      Type: 'Aliyun::Serverless::Function'
+      Properties:
+        Handler: index.handler
+        Runtime: python3
+        Timeout: 60
+        MemorySize: 256
+        CodeUri: 'oss://%bucket%/%templateName%/e15a2e7a47d7b1978e7074e0ae04fa7a'
+    cancelTrainTicket:
+      Type: 'Aliyun::Serverless::Function'
+      Properties:
+        Handler: index.handler
+        Runtime: python3
+        Timeout: 60
+        MemorySize: 256
+        CodeUri: 'oss://%bucket%/%templateName%/2e7ffaf749bc89cdc2d2f46dab615e79'
+    sendAlert:
+      Type: 'Aliyun::Serverless::Function'
+      Properties:
+        Handler: index.handler
+        Runtime: python3
+        Timeout: 60
+        MemorySize: 256
+        CodeUri: 'oss://%bucket%/%templateName%/6424610647e9938b6f0078bd79dfee27'

@@ -1,0 +1,64 @@
+ROSTemplateFormatVersion: '2015-09-01'
+Transform: 'Aliyun::Serverless-2018-04-03'
+Resources:
+  tripOrderProcessingFlow:
+    Type: 'Aliyun::Serverless::Flow'
+    DependsOn:
+      - tripOrderProcessingService
+    Properties:
+      Description: 'Trip order processing workflow'
+      Policies:
+        - AliyunFCInvocationAccess
+      DefinitionUri: flows/tripOrderProcessing.flow.yml
+  tripOrderProcessingService:
+    Properties:
+      Description: 'Trip order processing workflow'
+    Type: 'Aliyun::Serverless::Service'
+    bookTrainTicket:
+      Type: 'Aliyun::Serverless::Function'
+      Properties:
+        Handler: index.handler
+        Runtime: python3
+        Timeout: 60
+        MemorySize: 256
+        CodeUri: functions/bookTrainTicket
+    bookFlight:
+      Type: 'Aliyun::Serverless::Function'
+      Properties:
+        Handler: index.handler
+        Runtime: python3
+        Timeout: 60
+        MemorySize: 256
+        CodeUri: functions/bookFlight
+    bookHotel:
+      Type: 'Aliyun::Serverless::Function'
+      Properties:
+        Handler: index.handler
+        Runtime: python3
+        Timeout: 60
+        MemorySize: 256
+        CodeUri: functions/bookHotel
+    cancelFlight:
+      Type: 'Aliyun::Serverless::Function'
+      Properties:
+        Handler: index.handler
+        Runtime: python3
+        Timeout: 60
+        MemorySize: 256
+        CodeUri: functions/cancelFlight
+    cancelTrainTicket:
+      Type: 'Aliyun::Serverless::Function'
+      Properties:
+        Handler: index.handler
+        Runtime: python3
+        Timeout: 60
+        MemorySize: 256
+        CodeUri: functions/cancelTrainTicket
+    sendAlert:
+      Type: 'Aliyun::Serverless::Function'
+      Properties:
+        Handler: index.handler
+        Runtime: python3
+        Timeout: 60
+        MemorySize: 256
+        CodeUri: functions/sendAlert

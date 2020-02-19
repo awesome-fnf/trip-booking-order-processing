@@ -1,0 +1,106 @@
+# The following JSON object is the StartExecution input, change "succeeded" to "failed" to mock a task failure
+# {
+#   "trip_order_id": "happy-trip-id-1",
+#   "book_train_ticket_result": "succeeded",
+#   "book_flight_result": "succeeded",
+#   "book_hotel_result": "succeeded",
+#   "cancel_flight_result": "succeeded",
+#   "cancel_train_ticket_result": "succeeded"
+# }
+
+version: v1beta1
+type: flow
+steps:
+- type: task
+  resourceArn: !Ref tripOrderProcessingService/bookTrainTicket
+  name: BookTrainTicket
+  inputMappings:
+    - target: result
+      source: $input.book_train_ticket_result
+  outputMappings:
+    - target: book_train_ticket_transaction_id
+      source: $local.transaction_id
+  retry:  # 对 BookTrainTicketError 和 FC.Unknown 类型的错误最多指数退避重试3次，初始间隔1s，后续间隔 = 上次间隔 * 2
+    - errors:
+      - BookTrainTicketError
+      - FC.Unknown
+      intervalSeconds: 1
+      maxAttempts: 3
+      multiplier: 2
+  catch: 
+    - errors:
+      - BookTrainTicketError
+      goto: OrderFailed
+- type: task
+  resourceArn: !Ref tripOrderProcessingService/bookFlight
+  name: BookFlight
+  inputMappings:
+    - target: result
+      source: $input.book_flight_result
+  outputMappings:
+    - target: book_flight_transaction_id
+      source: $local.transaction_id
+  catch:  # 捕获 task 抛出的 BookFlightError 错误，跳转到 CancelTrainTicket
+    - errors:
+      - BookFlightError
+      goto: CancelTrainTicket
+- type: task
+  resourceArn: !Ref tripOrderProcessingService/bookHotel
+  name: BookHotel
+  inputMappings:
+    - target: result
+      source: $input.book_hotel_result
+  outputMappings:
+    - target: book_hotel_transaction_id
+      source: $local.transaction_id
+  catch:  # 捕获 task 抛出的 BookHotelError 错误，跳转到 CancelFlight
+    - errors:
+      - BookHotelError
+      goto: CancelFlight
+- type: succeed
+  name: OrderSucceeded
+- type: task
+  resourceArn: !Ref tripOrderProcessingService/cancelFlight
+  name: CancelFlight
+  inputMappings:
+    - target: result
+      source: $input.cancel_flight_result
+    - target: transaction_id
+      source: $local.book_flight_transaction_id
+  catch:  # 捕获 task 抛出的 CancelFlightError 错误，跳转到 CancelFlight
+    - errors:
+      - CancelFlightError
+      goto: SendAlert
+- type: task
+  resourceArn: !Ref tripOrderProcessingService/cancelTrainTicket
+  name: CancelTrainTicket
+  inputMappings:
+    - target: result
+      source: $input.cancel_train_ticket_result
+    - target: transaction_id
+      source: $local.book_train_ticket_transaction_id
+  catch:  # 捕获 task 抛出的 CancelTrainTicketError 错误，跳转到 SendAlert
+    - errors:
+      - CancelTrainTicketError
+      goto: SendAlert
+- type: fail
+  name: OrderFailed1
+- type: task
+  resourceArn: !Ref tripOrderProcessingService/sendAlert
+  name: SendAlert
+  inputMappings:
+    - target: trip_order_id
+      source: $input.trip_order_id
+    - target: alert_email_address
+      source: dummy_email@dummy_address
+- type: fail
+  name: OrderFailed
+outputMappings:  # 产生整个流程执行的输出
+  - target: trip_order_id
+    source: $input.trip_order_id
+  - target: book_train_ticket_transaction_id
+    source: $local.book_train_ticket_transaction_id
+  - target: book_flight_transaction_id
+    source: $local.book_flight_transaction_id
+  - target: book_hotel_transaction_id
+    source: $local.book_hotel_transaction_id
