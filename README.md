@@ -1,6 +1,17 @@
 ## 应用简介
 订单处理业务通常对事务性要求较高（全部预订支付成功或者全部退订成功）。现代订单系统往往需要分步骤调用多个分布式服务（如火车票，机票，酒店平台）的接口完成预订或退订操作，每个服务的可用性不尽相同。比较常见的提高分布式事务能力的方案是借助工作流引擎实现 Saga 模式，支持订单级别的事务。本应用展示了使用函数工作流（FnF）和函数计算（FC) 确保即使在严苛负责的生产环境中也能最大限度地实现订单流程事务（transaction）语义，降低人工干预的频率，减少用户反馈和投诉，提升用户体验。
 
+## 本地开发
+本示例所需要的 FnF 的流程和 FC 函数已经在 teamplate.yml 模板中定义，只需要通过 fun 工具即可一键部署
+
+```bash
+# git clone 该项目后在根目录 trip-booking-order-processing 下执行：
+fun deploy
+```
+
+* FnF 流程目录：flows/
+* FC 函数目录：functions/
+
 ## 调用示例
 点击`部署应用`创建资源完成，点击 Function Flow 资源跳转到 trip-order-processing 流程，使用以下 JSON 对象点击`开始流程` ：
 
@@ -23,14 +34,4 @@
 3. **状态持久化：** 对每个步骤产生的事件的持久化，即使在服务宕机断网升级等非预期情况中也能保证流程状态不丢失，环境恢复后流程执行随之恢复。
 
 ![fnf-fc-CN](https://img.alicdn.com/tfs/TB1bOMSvHj1gK0jSZFOXXc7GpXa-1541-1141.png)
-
-
-## 开发部署
-本示例所需要的 FnF 的流程和 FC 函数已经在 teamplate.yml 模板中定义，只需要通过 fun 工具即可一键部署
-
-```bash
-# git clone 该项目后在根目录 trip-booking-order-processing 下执行：
-fun deploy
-```
-
 

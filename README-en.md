@@ -1,6 +1,17 @@
 ## Introduction
 Transactions are essntial to e-commerce order processing, customers expect either an order is succeessful or failed without making any partial payment. Modern ording processing systems usually involve calling multiple distributed microservices to complete a single order, and each step could fail due to different service availability and state. Implementing Saga pattern based on workflow engines is common to provide better transactional guarantee. This application demostrates using Function Flow (FnF) and Function Compute (FC) to implement reliable transactions even with unavailable dependencies to reduce human interventions and customer complaints.
 
+## Local development
+All the related flow and functions are already defined in the `template.yml`, the project can be deployed with [fun](https://github.com/alibaba/funcraft) tool
+
+```bash
+# In the project root directory run fun deploy command
+fun deploy
+```
+
+* FnF flows directory：flows/
+* FC function directory：functions/
+
 ## Deployment and invocation
 
 Click `Deploy` and ROS will automatically create necessary FnF Flow and FC Functions required for this demo. After the resources are deployment is finished, click the `trip-order-processing` to redirect to Function Flow console and start an execution with the following JSON object as the input.
@@ -24,11 +35,3 @@ The following figure shows the order processing logic implemented by FnF. A FC f
 3. **State persistence:** FnF persists events produced during flow executions and is able to replay the events to recover flow execution states even with unpredicted service crash and network partitioning.
 
 ![fnf-fc-EN](https://img.alicdn.com/tfs/TB1PKZSvUY1gK0jSZFCXXcwqXXa-1541-1141.png)
-
-## Development and Deployment
-All the related flow and functions are already defined in the `template.yml`, the project can be deployed with [fun](https://github.com/alibaba/funcraft) tool
-
-```bash
-# In the project root directory run fun deploy command
-fun deploy
-```
